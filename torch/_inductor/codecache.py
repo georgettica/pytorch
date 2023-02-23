@@ -111,22 +111,25 @@ class PersistentCache:
         choices,
         name: str,
         inputs: str,
+        layout: str,
         benchmark: Callable[[Any], Tuple[Dict, bool]],
     ):
         """
         Check to see if we have benchmarked the given choice callers. For each
         choice caller:
 
-            1. Check global_cache[name][inputs][choice], return benchmark if cached.
-            2. Check local_cache[name][inputs][choice], return benchmark if cached.
+            1. Check global_cache[name][inputs + layout][choice], return benchmark if cached.
+            2. Check local_cache[name][inputs + layout][choice], return benchmark if cached.
             3.
                 a. `max_autotune=True`: benchmark the choice, update
-                    local_cache[name][inputs][choice], and return the benchmark.
+                    local_cache[name][inputs + layout][choice], and return the benchmark.
                 b. `max_autotune=False`: don't benchmark the choice, return nothing.
         """
+        inputs_and_layout = inputs + ", " + layout
+
         local_cache, benchmarked = self.get_local_cache(), False
         global_cache, gc_log = self.get_global_cache(), partial(
-            global_cache_log, self.dinfo, self.vinfo, name, inputs
+            global_cache_log, self.dinfo, self.vinfo, name, inputs_and_layout
         )
 
         timings = {}
@@ -147,11 +150,11 @@ class PersistentCache:
 
             if (
                 name in local_cache
-                and inputs in local_cache[name]
-                and choice_hash in local_cache[name][inputs]
+                and inputs_and_layout in local_cache[name]
+                and choice_hash in local_cache[name][inputs_and_layout]
             ):
                 # local cache hit
-                timings[choice] = local_cache[name][inputs][choice_hash]
+                timings[choice] = local_cache[name][inputs_and_layout][choice_hash]
                 continue
             # local cache miss
             if not config.max_autotune:
@@ -160,9 +163,9 @@ class PersistentCache:
             # benchmark the choice
             if name not in local_cache:
                 local_cache[name] = {}
-            if inputs not in local_cache[name]:
-                local_cache[name][inputs] = {}
-            local_cache[name][inputs][choice_hash], benchmarked = (
+            if inputs_and_layout not in local_cache[name]:
+                local_cache[name][inputs_and_layout] = {}
+            local_cache[name][inputs_and_layout][choice_hash], benchmarked = (
                 benchmark(choice),
                 True,
             )
